@@ -1,2 +1,7 @@
 *.caffemodel
 *.m~
+*.ipynb
+*.jpg
+*.png
+*.pyc
+*.mp4
