@@ -21,15 +21,51 @@ import matplotlib
 import pylab as plt
 #from numpy import ma
 from scipy.ndimage.filters import gaussian_filter
+#import multiprocessing
+#from functools import partial
+
+
+def find_peaks(heatmap_avg, all_peaks, peak_counter, param, part):
+    map_ori = heatmap_avg[:,:,part]
+    map = gaussian_filter(map_ori, sigma=2)
+    
+    map_left = np.zeros(map.shape)
+    map_left[1:,:] = map[:-1,:]
+    map_right = np.zeros(map.shape)
+    map_right[:-1,:] = map[1:,:]
+    map_up = np.zeros(map.shape)
+    map_up[:,1:] = map[:,:-1]
+    map_down = np.zeros(map.shape)
+    map_down[:,:-1] = map[:,1:]
+        
+    peaks_binary = np.logical_and.reduce((map>=map_left, map>=map_right, 
+                                          map>=map_up, map>=map_down, 
+                                          map > param['thre1']))
+    peaks = zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0]) # note reverse
+    peaks_with_score = [x + (map_ori[x[1],x[0]],) for x in peaks]
+    id = range(peak_counter, peak_counter + len(peaks))
+    peaks_with_score_and_id = [peaks_with_score[i] + (id[i],) for i in 
+                               range(len(id))]
+    
+    all_peaks.append(peaks_with_score_and_id)
+    peak_counter += len(peaks)
+    return all_peaks
+
 
 def pose_detect(param, net, model, full_img_name):
-    start_time = time.time()
+    #start_time = time.time()
     test_image = full_img_name
     oriImg = cv.imread(test_image) # B,G,R order
+    #print oriImg.shape
     
     #resizing to 368*654 as mentioned in the paper
     resize_x = 0.340625
     resize_y = 0.340740
+    #resize_x = 368.0/oriImg.shape[0]
+    #resize_y = 654.0/oriImg.shape[1]
+    
+    #print resize_x, resize_y
+    
     oriImg = cv.resize(oriImg, None, fx = resize_x, fy = resize_y, 
                        interpolation = cv.INTER_CUBIC)
     
@@ -40,16 +76,16 @@ def pose_detect(param, net, model, full_img_name):
     imageToTest_padded, pad = util.padRightDownCorner(imageToTest, model['stride'], model['padValue'])
     net.blobs['data'].reshape(*(1, 3, imageToTest_padded.shape[0], imageToTest_padded.shape[1]))
     net.blobs['data'].data[...] = np.transpose(np.float32(imageToTest_padded[:,:,:,np.newaxis]), (3,2,0,1))/256 - 0.5;
-    print "Image processing took %.2f ms. " %(1000 * (time.time() - start_time))
+    #print "Image processing took %.2f ms. " %(1000 * (time.time() - start_time))
     
     #run the model to get heat maps and pafs
-    start_time = time.time()
+    #start_time = time.time()
     output_blobs = net.forward()
-    print ('The CNN took %.2f ms. ' %(1000 * (time.time() - start_time)))
+    #print ('The CNN took %.2f ms. ' %(1000 * (time.time() - start_time)))
     
     
     # extract outputs, resize, and remove padding
-    start_time = time.time()
+    #start_time = time.time()
     heatmap = np.transpose(np.squeeze(net.blobs[output_blobs.keys()[1]].data), (1,2,0)) # output 1 is heatmaps
     heatmap = cv.resize(heatmap, (0,0), fx=model['stride'], fy=model['stride'], interpolation=cv.INTER_CUBIC)
     heatmap = heatmap[:imageToTest_padded.shape[0]-pad[2], :imageToTest_padded.shape[1]-pad[3], :]
@@ -60,15 +96,29 @@ def pose_detect(param, net, model, full_img_name):
     paf = paf[:imageToTest_padded.shape[0]-pad[2], :imageToTest_padded.shape[1]-pad[3], :]
     paf = cv.resize(paf, (oriImg.shape[1], oriImg.shape[0]), interpolation=cv.INTER_CUBIC)
     
+    #print ('Extracting output, resizing and removing padding took %.2f ms. ' %(
+    #        1000 * (time.time() - start_time)))
+    
+    
     heatmap_avg = heatmap
     paf_avg = paf
     all_peaks = []
     peak_counter = 0
-    print ('Extracting output, resizing and removing padding took %.2f ms. ' %(
-            1000 * (time.time() - start_time)))
 
     #finding peaks for joints
-    start_time = time.time()
+    #start_time = time.time()
+   # parts = np.arange(18)
+    #partialFindPeaks = partial(find_peaks, heatmap_avg, all_peaks, peak_counter,
+    #                           param)
+    
+    #pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    #all_peaks = pool.map(partialFindPeaks, xrange(19-1))
+    #pool.close()
+    #print all_peaks
+    #pool.join()
+    
+    #all_peaks = []
+    #peak_counter = 0
     for part in range(19-1):
         map_ori = heatmap_avg[:,:,part]
         map = gaussian_filter(map_ori, sigma=2)
@@ -81,19 +131,22 @@ def pose_detect(param, net, model, full_img_name):
         map_up[:,1:] = map[:,:-1]
         map_down = np.zeros(map.shape)
         map_down[:,:-1] = map[:,1:]
-        
+       
         peaks_binary = np.logical_and.reduce((map>=map_left, map>=map_right, 
                                               map>=map_up, map>=map_down, 
                                               map > param['thre1']))
         peaks = zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0]) # note reverse
         peaks_with_score = [x + (map_ori[x[1],x[0]],) for x in peaks]
         id = range(peak_counter, peak_counter + len(peaks))
+        #print id
         peaks_with_score_and_id = [peaks_with_score[i] + (id[i],) for i in 
                                    range(len(id))]
         
+        #print peaks_with_score_and_id
         all_peaks.append(peaks_with_score_and_id)
         peak_counter += len(peaks)
-    print "Finding peaks for joints took %.2f ms. " %(1000 * (time.time() - start_time))
+        #print peak_counter
+    #print "Finding peaks for joints took %.2f ms. " %(1000 * (time.time() - start_time))
 
 
     # find connection in the specified sequence, center 29 is in the position 15
@@ -109,8 +162,9 @@ def pose_detect(param, net, model, full_img_name):
     special_k = []
     mid_num = 10
     
+    
+    #start_time = time.time()
     #store paf candidates
-    start_time = time.time()
     for k in range(len(mapIdx)):
         score_mid = paf_avg[:,:,[x-19 for x in mapIdx[k]]]
         candA = all_peaks[limbSeq[k][0]-1]
@@ -164,15 +218,16 @@ def pose_detect(param, net, model, full_img_name):
         else:
             special_k.append(k)
             connection_all.append([])
-            
-        # last number in each row is the total parts number of that person
-        # the second last number in each row is the score of the overall configuration
-        subset = -1 * np.ones((0, 20))
-        candidate = np.array([item for sublist in all_peaks for item in sublist])
     
-    print "PAF took %.2f ms. " %(1000 * (time.time() - start_time))
+    #print "PAF took %.2f ms. " %(1000 * (time.time() - start_time))
 
 
+    #start_time = time.time()
+    # last number in each row is the total parts number of that person
+    # the second last number in each row is the score of the overall configuration
+    subset = -1 * np.ones((0, 20))
+    candidate = np.array([item for sublist in all_peaks for item in sublist])
+    
     for k in range(len(mapIdx)):
         if k not in special_k:
             partAs = connection_all[k][:,0]
@@ -216,6 +271,7 @@ def pose_detect(param, net, model, full_img_name):
                     row[-2] = sum(candidate[connection_all[k][i,:2].astype(int), 2]) + connection_all[k][i][2]
                     subset = np.vstack([subset, row])
 
+    #print "PAF2 took %.2f ms. " %(1000 * (time.time() - start_time))
     # delete some rows of subset which has few parts occur
     deleteIdx = [];
     for i in range(len(subset)):
@@ -225,22 +281,64 @@ def pose_detect(param, net, model, full_img_name):
 
     
     # visualize
-    start_time = time.time()
+    #start_time = time.time()
     colors = [[255, 0, 0], [255, 85, 0], [255, 170, 0], [255, 255, 0], 
               [170, 255, 0], [85, 255, 0], [0, 255, 0], [0, 255, 85], 
               [0, 255, 170], [0, 255, 255], [0, 170, 255], [0, 85, 255], 
               [0, 0, 255], [85, 0, 255], [170, 0, 255], [255, 0, 255], 
               [255, 0, 170], [255, 0, 85]]
 
+    #draw only the peak points for joints
+    cmap = matplotlib.cm.get_cmap('hsv')
     canvas = cv.imread(test_image) # B,G,R order
-    canvas = cv.resize(canvas, None, fx = 0.340625, fy = 0.340740, 
+    canvas = cv.resize(canvas, None, fx = resize_x, fy = resize_x, 
                        interpolation = cv.INTER_CUBIC)
+
+    #print len(all_peaks)
+    #print len(all_peaks[0])
+    #print len(all_peaks[0][0])
+    """all_peaks is in the form [joint][person][coordinates, confidence, part number]"""
+    
+    #print all_peaks
+    for i in range(18):
+        rgba = np.array(cmap(1 - i/18. - 1./36))
+        rgba[0:3] *= 255
+        #if len(all_peaks[i]) > 2:
+        #    print all_peaks
+        #print len(all_peaks[i])
+        #for j in range(len(all_peaks[i])):
+        #    cv.circle(canvas, all_peaks[i][j][0:2], 4, colors[i], thickness=-1)
+            #print all_peaks[i][j][0:2]
+        #if len(all_peaks[i])>=2:
+        #    cv.circle(canvas, all_peaks[i][1][0:2], 4, colors[i], thickness=-1)
+        #elif len(all_peaks[i])<2 and len(all_peaks[i])>=1:
+        #    cv.circle(canvas, all_peaks[i][0][0:2], 4, colors[i], thickness=-1)
+        
+
+    to_plot = cv.addWeighted(canvas, 0.3, canvas, 0.7, 0)
+    plt.imshow(to_plot[:,:,[2,1,0]])
+    fig = matplotlib.pyplot.gcf()
+    fig.set_size_inches(12, 12)
+
+    img_name_split = full_img_name.split('/')
+    folder_name = img_name_split[-2]
+    img_name = img_name_split[-1]
+    #fig.savefig('/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/pose_detections_PAF/'+
+    #            folder_name+'/'+img_name)
+    
+    #draw the sticks for the limbs
+    canvas = cv.imread(test_image) # B,G,R order
+    canvas = cv.resize(canvas, None, fx = resize_x, fy = resize_x, 
+                       interpolation = cv.INTER_CUBIC)
+    
     
     stickwidth = 4
 
     for i in range(17):
+        #print len(subset)
         for n in range(len(subset)):
             index = subset[n][np.array(limbSeq[i])-1]
+            #print index
             if -1 in index:
                 continue
             cur_canvas = canvas.copy()
@@ -250,20 +348,55 @@ def pose_detect(param, net, model, full_img_name):
             mY = np.mean(Y)
             length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
             angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
-            polygon = cv.ellipse2Poly((int(mY),int(mX)), (int(length/2), stickwidth), int(angle), 0, 360, 1)
+            polygon = cv.ellipse2Poly((int(mY),int(mX)), (int(length/2), 
+                                       stickwidth), int(angle), 0, 360, 1)
             cv.fillConvexPoly(cur_canvas, polygon, colors[i])
+            cv.circle(cur_canvas, (int(Y[0]), int(X[0])), 4, colors[i], 
+                      thickness=-1)
+            cv.circle(cur_canvas, (int(Y[1]), int(X[1])), 4, colors[i], 
+                      thickness=-1)
             canvas = cv.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+    
+    for n in range(len(subset)):
+        x_min = 10000
+        y_min = 10000
+        x_max = -1
+        y_max = -1
+        
+        for i in range(17):
+            index = subset[n][np.array(limbSeq[i])-1]
+            if -1 in index:
+                continue
+            X = candidate[index.astype(int), 0]
+            Y = candidate[index.astype(int), 1]
+            if X[0] < x_min or X[1] < x_min:
+                x_min = min(X)
+            if Y[0] < y_min or Y[1] < y_min:
+                y_min = min(Y)
+            if X[1] > x_max or X[0] > x_max:
+                x_max = max(X)
+            if Y[1] > y_max or Y[0] > y_max:
+                y_max = max(Y)
+        #print x_min, y_min, x_max, y_max
+        img_bounds = canvas.shape
+        cv.rectangle(canvas, 
+                     (max(int(x_min-18), 0), 
+                      max(int(y_min-18), 0)), 
+                     (min(int(x_max + 18), img_bounds[1]), 
+                      min(int(y_max + 18), img_bounds[0])),
+                      colors[n], thickness = 2)
         
     plt.imshow(canvas[:,:,[2,1,0]])
     plt.axis('off')
     fig = matplotlib.pyplot.gcf()
     fig.set_size_inches(12, 12)
-    print "Patching points on image took %.2f ms. " %(1000 * (time.time() - start_time))
-    
+    #print "Patching points on image took %.2f ms. " %(1000 * (time.time() - start_time))
     #img_name_split = full_img_name.split('/')
     #folder_name = img_name_split[-2]
     #img_name = img_name_split[-1]
     #start_time  = time.time()
-    #fig.savefig('/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/pose_detections_PAF/'+
-    #            folder_name+'/'+img_name)
+    fig.savefig('/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/pose_detections_PAF/'+
+                folder_name+'/'+img_name)
     #print "Saving labelled figure took %.2f ms. " %(1000 * (time.time() - start_time))
+    
+#def eval_detections():

@@ -31,6 +31,6 @@ for folder in folders:
         start_time = time.time()
         full_image_path = os.path.join(os.path.join(home_dir, folder), img)
         pose_detect.pose_detect(param, net, model, full_image_path)
-        #print "detection done for {}".format(full_image_path)
+        print "detection done for {}".format(full_image_path)
         print "total time for this image was %.4f s." %((time.time() - start_time))
         print "*************************************************************************"
