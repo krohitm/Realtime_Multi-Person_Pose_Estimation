@@ -23,34 +23,7 @@ import pylab as plt
 from scipy.ndimage.filters import gaussian_filter
 #import multiprocessing
 #from functools import partial
-
-
-def find_peaks(heatmap_avg, all_peaks, peak_counter, param, part):
-    map_ori = heatmap_avg[:,:,part]
-    map = gaussian_filter(map_ori, sigma=2)
-    
-    map_left = np.zeros(map.shape)
-    map_left[1:,:] = map[:-1,:]
-    map_right = np.zeros(map.shape)
-    map_right[:-1,:] = map[1:,:]
-    map_up = np.zeros(map.shape)
-    map_up[:,1:] = map[:,:-1]
-    map_down = np.zeros(map.shape)
-    map_down[:,:-1] = map[:,1:]
-        
-    peaks_binary = np.logical_and.reduce((map>=map_left, map>=map_right, 
-                                          map>=map_up, map>=map_down, 
-                                          map > param['thre1']))
-    peaks = zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0]) # note reverse
-    peaks_with_score = [x + (map_ori[x[1],x[0]],) for x in peaks]
-    id = range(peak_counter, peak_counter + len(peaks))
-    peaks_with_score_and_id = [peaks_with_score[i] + (id[i],) for i in 
-                               range(len(id))]
-    
-    all_peaks.append(peaks_with_score_and_id)
-    peak_counter += len(peaks)
-    return all_peaks
-
+import pandas as pd
 
 def pose_detect(param, net, model, full_img_name):
     #start_time = time.time()
@@ -104,21 +77,7 @@ def pose_detect(param, net, model, full_img_name):
     paf_avg = paf
     all_peaks = []
     peak_counter = 0
-
-    #finding peaks for joints
-    #start_time = time.time()
-   # parts = np.arange(18)
-    #partialFindPeaks = partial(find_peaks, heatmap_avg, all_peaks, peak_counter,
-    #                           param)
     
-    #pool = multiprocessing.Pool(multiprocessing.cpu_count())
-    #all_peaks = pool.map(partialFindPeaks, xrange(19-1))
-    #pool.close()
-    #print all_peaks
-    #pool.join()
-    
-    #all_peaks = []
-    #peak_counter = 0
     for part in range(19-1):
         map_ori = heatmap_avg[:,:,part]
         map = gaussian_filter(map_ori, sigma=2)
@@ -289,10 +248,10 @@ def pose_detect(param, net, model, full_img_name):
               [255, 0, 170], [255, 0, 85]]
 
     #draw only the peak points for joints
-    cmap = matplotlib.cm.get_cmap('hsv')
-    canvas = cv.imread(test_image) # B,G,R order
-    canvas = cv.resize(canvas, None, fx = resize_x, fy = resize_x, 
-                       interpolation = cv.INTER_CUBIC)
+    #cmap = matplotlib.cm.get_cmap('hsv')
+    #canvas = cv.imread(test_image) # B,G,R order
+    #canvas = cv.resize(canvas, None, fx = resize_x, fy = resize_x, 
+    #                   interpolation = cv.INTER_CUBIC)
 
     #print len(all_peaks)
     #print len(all_peaks[0])
@@ -300,9 +259,9 @@ def pose_detect(param, net, model, full_img_name):
     """all_peaks is in the form [joint][person][coordinates, confidence, part number]"""
     
     #print all_peaks
-    for i in range(18):
-        rgba = np.array(cmap(1 - i/18. - 1./36))
-        rgba[0:3] *= 255
+    #for i in range(18):
+    #    rgba = np.array(cmap(1 - i/18. - 1./36))
+    #    rgba[0:3] *= 255
         #if len(all_peaks[i]) > 2:
         #    print all_peaks
         #print len(all_peaks[i])
@@ -315,10 +274,10 @@ def pose_detect(param, net, model, full_img_name):
         #    cv.circle(canvas, all_peaks[i][0][0:2], 4, colors[i], thickness=-1)
         
 
-    to_plot = cv.addWeighted(canvas, 0.3, canvas, 0.7, 0)
-    plt.imshow(to_plot[:,:,[2,1,0]])
-    fig = matplotlib.pyplot.gcf()
-    fig.set_size_inches(12, 12)
+    #to_plot = cv.addWeighted(canvas, 0.3, canvas, 0.7, 0)
+    #plt.imshow(to_plot[:,:,[2,1,0]])
+    #fig = matplotlib.pyplot.gcf()
+    #fig.set_size_inches(12, 12)
 
     img_name_split = full_img_name.split('/')
     folder_name = img_name_split[-2]
@@ -334,28 +293,30 @@ def pose_detect(param, net, model, full_img_name):
     
     stickwidth = 4
 
-    for i in range(17):
-        #print len(subset)
-        for n in range(len(subset)):
-            index = subset[n][np.array(limbSeq[i])-1]
-            #print index
-            if -1 in index:
-                continue
-            cur_canvas = canvas.copy()
-            Y = candidate[index.astype(int), 0]
-            X = candidate[index.astype(int), 1]
-            mX = np.mean(X)
-            mY = np.mean(Y)
-            length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
-            angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
-            polygon = cv.ellipse2Poly((int(mY),int(mX)), (int(length/2), 
-                                       stickwidth), int(angle), 0, 360, 1)
-            cv.fillConvexPoly(cur_canvas, polygon, colors[i])
-            cv.circle(cur_canvas, (int(Y[0]), int(X[0])), 4, colors[i], 
-                      thickness=-1)
-            cv.circle(cur_canvas, (int(Y[1]), int(X[1])), 4, colors[i], 
-                      thickness=-1)
-            canvas = cv.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+    """actual code to draw poselets on all persons detected"""
+    #for i in range(17):
+    #    for n in range(len(subset)):
+    #        index = subset[n][np.array(limbSeq[i])-1]
+    #        if -1 in index:
+    #            continue
+    #        cur_canvas = canvas.copy()
+    #        Y = candidate[index.astype(int), 0]
+    #        X = candidate[index.astype(int), 1]
+    #        mX = np.mean(X)
+    #        mY = np.mean(Y)
+    #        length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
+    #        angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
+    #        polygon = cv.ellipse2Poly((int(mY),int(mX)), (int(length/2), 
+    #                                   stickwidth), int(angle), 0, 360, 1)
+    #        cv.fillConvexPoly(cur_canvas, polygon, colors[i])
+    #        cv.circle(cur_canvas, (int(Y[0]), int(X[0])), 4, colors[i], 
+    #                  thickness=-1)
+    #        cv.circle(cur_canvas, (int(Y[1]), int(X[1])), 4, colors[i], 
+    #                  thickness=-1)
+    #        canvas = cv.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+    
+    
+    bbox = []
     
     for n in range(len(subset)):
         x_min = 10000
@@ -377,15 +338,102 @@ def pose_detect(param, net, model, full_img_name):
                 x_max = max(X)
             if Y[1] > y_max or Y[0] > y_max:
                 y_max = max(Y)
-        #print x_min, y_min, x_max, y_max
         img_bounds = canvas.shape
-        cv.rectangle(canvas, 
-                     (max(int(x_min-18), 0), 
-                      max(int(y_min-18), 0)), 
-                     (min(int(x_max + 18), img_bounds[1]), 
-                      min(int(y_max + 18), img_bounds[0])),
-                      colors[n], thickness = 2)
         
+        x_min = max(int(x_min - 18), 0)
+        y_min = max(int(y_min - 18), 0)
+        x_max = min(int(x_max + 18), img_bounds[1])
+        y_max = min(int(y_max + 18), img_bounds[0])
+        #cv.rectangle(canvas, (x_min, y_min), (x_max, y_max), colors[n], 
+        #             thickness = 2)
+        bbox.append([x_min, y_min, x_max, y_max])
+        
+    """temporary selecting the box with max area for own results"""
+    bbox_temp = np.array(bbox)
+    
+    #base condition if nothing is detected
+    if len(bbox_temp) == 0:
+        plt.imshow(canvas[:,:,[2,1,0]])
+        plt.axis('off')
+        fig = matplotlib.pyplot.gcf()
+        fig.set_size_inches(12, 12)
+        #fig.savefig('/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/pose_detections_PAF/'+
+        #        folder_name+'/'+img_name)
+        return [], []
+    #print bbox_temp
+    max_area_index = np.argmax(abs((bbox_temp[:,0] - bbox_temp[:,2]) * 
+                (bbox_temp[:,1] - bbox_temp[:,3])))
+    
+    #cv.rectangle(canvas, 
+    #             (bbox[max_area_index][0], bbox[max_area_index][1]), 
+    #             (bbox[max_area_index][2], bbox[max_area_index][3]),
+    #             colors[0], thickness = 2)
+    
+    """order of limbs is: right collar, left collar, right upper arm,
+    right forearm, left upper arm, left forearm, neck to right hip, 
+    right thigh, right calf, neck to left hip, left thigh, left calf, neck, right eye,
+    left eye, right eye to back, left eye to back, """
+    columns_angles = ['right_collar_angle', 'left_collar_angle', 'right_upper_arm_angle',
+               'right_forearm_angle', 'left_upper_arm_angle', 'left_forearm_angle', 
+               'neck_to_right_hip_angle', 'right_thigh_angle', 'right_calf_angle', 
+               'neck_to_left_hip_angle', 'left_thigh_angle', 'left_calf_angle',
+               'neck_angle', 'right_eye_angle', 'left_eye_angle', 
+               'right_eye_to_back_angle', 'left_eye_to_back_angle']
+    columns_lengths = ['right_collar_length', 'left_collar_length', 'right_upper_arm_length',
+               'right_forearm_length', 'left_upper_arm_length', 'left_forearm_length', 
+               'neck_to_right_hip_length', 'right_thigh_length', 'right_calf_length', 
+               'neck_to_left_hip_length', 'left_thigh_length', 'left_calf_length', 
+               'neck_length', 'right_eye_length', 'left_eye_length', 
+               'right_eye_to_back_length', 'left_eye_to_back_length']
+    columns_parts = ['Neck','skip1','RShoulder','RElbow','LShoulder','LElbow', 
+                     'skip2','RHip', 'RKnee','skip3', 'LHip', 'LKnee', 'skip4', 
+                     'Nose', 'REye', 'LEye']
+    
+    n = max_area_index
+    #angles = {}
+    #lengths = {}
+    body_parts = pd.DataFrame(columns=columns_parts)
+    angles = pd.DataFrame(columns=columns_angles)
+    lengths = pd.DataFrame(columns=columns_lengths)
+    for i in range(17):
+        index = subset[n][np.array(limbSeq[i])-1]
+        if -1 in index:
+            continue
+        #print "limb {} found".format(str(i))
+        cur_canvas = canvas.copy()
+        X = candidate[index.astype(int), 0]
+        Y = candidate[index.astype(int), 1]
+        mX = np.mean(X)
+        mY = np.mean(Y)
+        length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
+        angle = math.degrees(math.atan2(Y[0] - Y[1], X[0] - X[1]))
+        polygon = cv.ellipse2Poly((int(mX),int(mY)), (int(length/2), 
+                                   stickwidth), int(angle), 0, 360, 1)
+        cv.fillConvexPoly(cur_canvas, polygon, colors[i])
+        cv.circle(cur_canvas, (int(X[0]), int(Y[0])), 4, colors[i], 
+                  thickness=-1)
+        cv.circle(cur_canvas, (int(X[1]), int(Y[1])), 4, colors[i], 
+                  thickness=-1)
+        canvas = cv.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+        #lengths.append((i, length))
+        #angles.append((i, angle))
+        #angles[0, columns_angles[i]] = angle
+        #lengths[0, columns_lengths[i]] = length
+        angles.set_value(0, columns_angles[i], angle)
+        lengths.set_value(0, columns_lengths[i], length)
+        if i < 16:
+            body_parts.set_value(0, columns_parts[i], (X[0], Y[0]))
+        #print X[0],Y[0]
+        #lengths[i]=length
+        #angles[i]=angle
+        #print angle
+    #for box in bbox:
+    #    area = abs((box[0] - box[2]) * (box[1] - box[3]))
+        #print area
+    #    cv.rectangle(canvas, (box[0], box[1]), (box[2], box[3]), colors[0],
+    #                 thickness = 2)
+    
+    
     plt.imshow(canvas[:,:,[2,1,0]])
     plt.axis('off')
     fig = matplotlib.pyplot.gcf()
@@ -395,8 +443,14 @@ def pose_detect(param, net, model, full_img_name):
     #folder_name = img_name_split[-2]
     #img_name = img_name_split[-1]
     #start_time  = time.time()
-    fig.savefig('/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/pose_detections_PAF/'+
-                folder_name+'/'+img_name)
+    #fig.savefig('/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/pose_detections_PAF/'+
+    #            folder_name+'/'+img_name)
+    fig.savefig('/data0/krohitm/code/detections/'+img_name)
     #print "Saving labelled figure took %.2f ms. " %(1000 * (time.time() - start_time))
-    
+    #print angles
+    #print angles
+    #print combs
+    plt.close()
+    #print body_parts
+    return bbox[max_area_index], angles, lengths, body_parts
 #def eval_detections():
