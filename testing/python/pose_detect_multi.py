@@ -267,6 +267,10 @@ def pose_detect(param, net, model, full_img_name, storage_loc):
     angles = pd.DataFrame(columns=columns_angles)
     lengths = pd.DataFrame(columns=columns_lengths)
     for n in range (len(subset)):
+        x_min = 10000
+        y_min = 10000
+        x_max = -1
+        y_max = -1
         for i in range(17):
             index = subset[n][np.array(limbSeq[i])-1]
             if -1 in index:
@@ -290,6 +294,22 @@ def pose_detect(param, net, model, full_img_name, storage_loc):
             lengths.set_value(n, columns_lengths[i], length)
             if i < 16:
                 body_parts.set_value(n, columns_parts[i], (X[0], Y[0]))
+            
+            if X[0] < x_min or X[1] < x_min:
+                x_min = min(X)
+            if Y[0] < y_min or Y[1] < y_min:
+                y_min = min(Y)
+            if X[1] > x_max or X[0] > x_max:
+                x_max = max(X)
+            if Y[1] > y_max or Y[0] > y_max:
+                y_max = max(Y)
+            
+        img_bounds = canvas.shape
+        x_min = max(int(x_min - 18), 0)
+        y_min = max(int(y_min - 18), 0)
+        x_max = min(int(x_max + 18), img_bounds[1])
+        y_max = min(int(y_max + 18), img_bounds[0])
+        cv.rectangle(canvas, (x_min, y_min), (x_max, y_max), colors[n], thickness=2)
     
     
     plt.imshow(canvas[:,:,[2,1,0]])
