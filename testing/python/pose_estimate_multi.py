@@ -1,10 +1,11 @@
-import sys, os
-sys.path.append('/usr/local/lib/python2.7/site-packages')
+#import sys 
+import os
+#sys.path.append('/usr/local/lib/python2.7/site-packages')
 import caffe
 from config_reader import config_reader
-import pose_detect
+import pose_detect_multi
 import time
-import numpy as np
+#import numpy as np
 import pandas as pd
 import argparse
 
@@ -50,16 +51,17 @@ columns_parts = ['Neck','skip1','RShoulder','RElbow','LShoulder','LElbow',
                      'skip2','RHip', 'RKnee','skip3', 'LHip', 'LKnee', 'skip4', 
                      'Nose', 'REye', 'LEye']
 
-#bbox = []
 angles = pd.DataFrame(columns=columns_angles)
 lengths = pd.DataFrame(columns=columns_lengths)
 body_parts= pd.DataFrame(columns=columns_parts)
-#array to store img_info as [image_name, dict(angles_of_limbs), dict(lengths_of_limbs)]
-img_info = []
-features = pd.DataFrame()
-img_names = pd.DataFrame(columns=['image_name'])
 
-img_index = 0
+#array to store img_info as [image_name, dict(angles_of_limbs), dict(lengths_of_limbs)]
+
+#img_names = pd.DataFrame(columns=['image_name'])
+#all_features = [img_names, body_parts, angles, lengths]
+#combs = pd.concat(all_features, axis = 1)
+
+#img_index = 0
 for folder in folders:
     try:
         os.mkdir(os.path.join(storage_loc, folder))#'/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/pose_detections_PAF/'+folder)
@@ -68,46 +70,48 @@ for folder in folders:
 
     _,_,imgs = os.walk(os.path.join(home_dir,folder)).next()
     imgs.sort()
-    #count = 0
+    count = 0
     flag = 0
+    angles = pd.DataFrame(columns=columns_angles)
+    lengths = pd.DataFrame(columns=columns_lengths)
+    body_parts= pd.DataFrame(columns=columns_parts)
+    img_names = pd.DataFrame(columns=['image_name'])
+    all_features = [img_names, body_parts, angles, lengths]
+    combs = pd.DataFrame()
+    combs = pd.concat(all_features, axis = 1)
+    #angles = pd.DataFrame(columns=columns_angles)
+    #lengths = pd.DataFrame(columns=columns_lengths)
+    #body_parts= pd.DataFrame(columns=columns_parts)
+    
     for img in imgs:
+        img_names = pd.DataFrame(columns=['image_name'])
         start_time = time.time()
         full_image_path = os.path.join(os.path.join(home_dir, folder), img)
         #if full_image_path == '/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/images/2017-05-19-1143-43/0013414.jpg':
         #    flag = 1
         #if flag == 0:
         #    continue
-        _, angles_temp, lengths_temp, body_parts_temp = pose_detect.pose_detect(
+        angles_temp, lengths_temp, body_parts_temp = pose_detect_multi.pose_detect(
                 param, net, model, full_image_path, storage_loc)
         print "detection done for {}".format(full_image_path)
         print "total time for this image was %.4f s." %((time.time() - start_time))
         print "*************************************************************************"
-        #check if no bbox detected
-        #if bbox_temp == []:
-        #    bbox.append([-1,-1,-1,-1])
-        #    continue
-        #bbox.append(bbox_temp)
-        #angles.append(angles_temp)
-        #lengths.append(lengths_temp)
-        img_names.set_value(img_index, 'image_name', full_image_path)
-        #img_names = img_names.append(full_image_path, ignore_index=True)
-        angles = angles.append(angles_temp, ignore_index=True)
-        lengths = lengths.append(lengths_temp, ignore_index=True)
-        body_parts = body_parts.append(body_parts_temp, ignore_index=True)
-        #print angles
-        #print angles_temp
-        #img_info.append([full_image_path, angles_temp, lengths_temp])
+        
+        img_names.set_value(0, 'image_name', full_image_path)
+        #angles = angles.append(angles_temp, ignore_index=True)
+        #lengths = lengths.append(lengths_temp, ignore_index=True)
+        #body_parts = body_parts.append(body_parts_temp, ignore_index=True)
+        comb_temp = pd.concat([img_names, body_parts_temp, angles_temp, lengths_temp],
+                              axis = 1)
+        combs = combs.append(comb_temp, ignore_index=True)
         #count += 1
-        img_index += 1
+        #img_index += 1
         #if count >=3:
         #    break
+    #print combs
+    
+    combs.drop(['skip1','skip2','skip3','skip4'], axis=1, inplace=True)
+    combs.to_csv(os.path.join(storage_loc, folder, 'points.csv'), index=False)
         
-
-all_features = [img_names, body_parts, angles, lengths]
-combs = pd.concat(all_features, axis = 1)
-#print combs.loc[0,'image_name']
-#print angles
-#print lengths
-#print img_info
-combs.drop(['skip1','skip2','skip3','skip4'], axis=1, inplace=True)
-combs.to_csv(os.path.join(storage_loc,'check.csv'), index=False)
+#combs.drop(['skip1','skip2','skip3','skip4'], axis=1, inplace=True)
+#combs.to_csv(os.path.join(storage_loc,'check.csv'), index=False)

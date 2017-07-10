@@ -5,7 +5,7 @@ import cv2
 import lmdb
 import sys, os
 # change your caffe path here
-sys.path.insert(0, os.path.join('/home/zhecao/caffe/', 'python/'))
+#sys.path.insert(0, os.path.join('/home/zhecao/caffe/', 'python/'))
 import caffe
 import os.path
 import struct

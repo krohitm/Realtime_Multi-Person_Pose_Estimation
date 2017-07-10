@@ -1,28 +1,10 @@
-
-# coding: utf-8
-
-# In[1]:
-
-import sys
-
-sys.path.append('/usr/local/lib/python2.7/site-packages')
 import cv2 as cv 
 import numpy as np
-#import scipy
-#import PIL.Image
 import math
-#import caffe
-#import time
-#from config_reader import config_reader
 import util
-#import copy
 import matplotlib
-#get_ipython().magic(u'matplotlib inline')
 import pylab as plt
-#from numpy import ma
 from scipy.ndimage.filters import gaussian_filter
-#import multiprocessing
-#from functools import partial
 import pandas as pd
 
 def pose_detect(param, net, model, full_img_name, storage_loc):
@@ -34,10 +16,6 @@ def pose_detect(param, net, model, full_img_name, storage_loc):
     #resizing to 368*654 as mentioned in the paper
     resize_x = 0.340625
     resize_y = 0.340740
-    #resize_x = 368.0/oriImg.shape[0]
-    #resize_y = 654.0/oriImg.shape[1]
-    
-    #print resize_x, resize_y
     
     oriImg = cv.resize(oriImg, None, fx = resize_x, fy = resize_y, 
                        interpolation = cv.INTER_CUBIC)
@@ -247,43 +225,12 @@ def pose_detect(param, net, model, full_img_name, storage_loc):
               [0, 0, 255], [85, 0, 255], [170, 0, 255], [255, 0, 255], 
               [255, 0, 170], [255, 0, 85]]
 
-    #draw only the peak points for joints
-    #cmap = matplotlib.cm.get_cmap('hsv')
-    #canvas = cv.imread(test_image) # B,G,R order
-    #canvas = cv.resize(canvas, None, fx = resize_x, fy = resize_x, 
-    #                   interpolation = cv.INTER_CUBIC)
-
-    #print len(all_peaks)
-    #print len(all_peaks[0])
-    #print len(all_peaks[0][0])
     """all_peaks is in the form [joint][person][coordinates, confidence, part number]"""
     
-    #print all_peaks
-    #for i in range(18):
-    #    rgba = np.array(cmap(1 - i/18. - 1./36))
-    #    rgba[0:3] *= 255
-        #if len(all_peaks[i]) > 2:
-        #    print all_peaks
-        #print len(all_peaks[i])
-        #for j in range(len(all_peaks[i])):
-        #    cv.circle(canvas, all_peaks[i][j][0:2], 4, colors[i], thickness=-1)
-            #print all_peaks[i][j][0:2]
-        #if len(all_peaks[i])>=2:
-        #    cv.circle(canvas, all_peaks[i][1][0:2], 4, colors[i], thickness=-1)
-        #elif len(all_peaks[i])<2 and len(all_peaks[i])>=1:
-        #    cv.circle(canvas, all_peaks[i][0][0:2], 4, colors[i], thickness=-1)
-        
-
-    #to_plot = cv.addWeighted(canvas, 0.3, canvas, 0.7, 0)
-    #plt.imshow(to_plot[:,:,[2,1,0]])
-    #fig = matplotlib.pyplot.gcf()
-    #fig.set_size_inches(12, 12)
 
     img_name_split = full_img_name.split('/')
     folder_name = img_name_split[-2]
     img_name = img_name_split[-1]
-    #fig.savefig('/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/pose_detections_PAF/'+
-    #            folder_name+'/'+img_name)
     
     #draw the sticks for the limbs
     canvas = cv.imread(test_image) # B,G,R order
@@ -292,82 +239,6 @@ def pose_detect(param, net, model, full_img_name, storage_loc):
     
     
     stickwidth = 4
-
-    """actual code to draw poselets on all persons detected"""
-    #for i in range(17):
-    #    for n in range(len(subset)):
-    #        index = subset[n][np.array(limbSeq[i])-1]
-    #        if -1 in index:
-    #            continue
-    #        cur_canvas = canvas.copy()
-    #        Y = candidate[index.astype(int), 0]
-    #        X = candidate[index.astype(int), 1]
-    #        mX = np.mean(X)
-    #        mY = np.mean(Y)
-    #        length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
-    #        angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
-    #        polygon = cv.ellipse2Poly((int(mY),int(mX)), (int(length/2), 
-    #                                   stickwidth), int(angle), 0, 360, 1)
-    #        cv.fillConvexPoly(cur_canvas, polygon, colors[i])
-    #        cv.circle(cur_canvas, (int(Y[0]), int(X[0])), 4, colors[i], 
-    #                  thickness=-1)
-    #        cv.circle(cur_canvas, (int(Y[1]), int(X[1])), 4, colors[i], 
-    #                  thickness=-1)
-    #        canvas = cv.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
-    
-    
-    bbox = []
-    
-    for n in range(len(subset)):
-        x_min = 10000
-        y_min = 10000
-        x_max = -1
-        y_max = -1
-        
-        for i in range(17):
-            index = subset[n][np.array(limbSeq[i])-1]
-            if -1 in index:
-                continue
-            X = candidate[index.astype(int), 0]
-            Y = candidate[index.astype(int), 1]
-            if X[0] < x_min or X[1] < x_min:
-                x_min = min(X)
-            if Y[0] < y_min or Y[1] < y_min:
-                y_min = min(Y)
-            if X[1] > x_max or X[0] > x_max:
-                x_max = max(X)
-            if Y[1] > y_max or Y[0] > y_max:
-                y_max = max(Y)
-        img_bounds = canvas.shape
-        
-        x_min = max(int(x_min - 18), 0)
-        y_min = max(int(y_min - 18), 0)
-        x_max = min(int(x_max + 18), img_bounds[1])
-        y_max = min(int(y_max + 18), img_bounds[0])
-        #cv.rectangle(canvas, (x_min, y_min), (x_max, y_max), colors[n], 
-        #             thickness = 2)
-        bbox.append([x_min, y_min, x_max, y_max])
-        
-    """temporary selecting the box with max area for own results"""
-    bbox_temp = np.array(bbox)
-    
-    #base condition if nothing is detected
-    if len(bbox_temp) == 0:
-        plt.imshow(canvas[:,:,[2,1,0]])
-        plt.axis('off')
-        fig = matplotlib.pyplot.gcf()
-        fig.set_size_inches(12, 12)
-        #fig.savefig('/home/krohitm/code/Realtime_Multi-Person_Pose_Estimation/testing/pose_detections_PAF/'+
-        #        folder_name+'/'+img_name)
-        return [], []
-    #print bbox_temp
-    max_area_index = np.argmax(abs((bbox_temp[:,0] - bbox_temp[:,2]) * 
-                (bbox_temp[:,1] - bbox_temp[:,3])))
-    
-    #cv.rectangle(canvas, 
-    #             (bbox[max_area_index][0], bbox[max_area_index][1]), 
-    #             (bbox[max_area_index][2], bbox[max_area_index][3]),
-    #             colors[0], thickness = 2)
     
     """order of limbs is: right collar, left collar, right upper arm,
     right forearm, left upper arm, left forearm, neck to right hip, 
@@ -389,67 +260,42 @@ def pose_detect(param, net, model, full_img_name, storage_loc):
                      'skip2','RHip', 'RKnee','skip3', 'LHip', 'LKnee', 'skip4', 
                      'Nose', 'REye', 'LEye']
     
-    n = max_area_index
+    #n = max_area_index
     #angles = {}
     #lengths = {}
     body_parts = pd.DataFrame(columns=columns_parts)
     angles = pd.DataFrame(columns=columns_angles)
     lengths = pd.DataFrame(columns=columns_lengths)
-    for i in range(17):
-        index = subset[n][np.array(limbSeq[i])-1]
-        if -1 in index:
-            continue
-        #print "limb {} found".format(str(i))
-        cur_canvas = canvas.copy()
-        X = candidate[index.astype(int), 0]
-        Y = candidate[index.astype(int), 1]
-        mX = np.mean(X)
-        mY = np.mean(Y)
-        length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
-        angle = math.degrees(math.atan2(Y[0] - Y[1], X[0] - X[1]))
-        polygon = cv.ellipse2Poly((int(mX),int(mY)), (int(length/2), 
-                                   stickwidth), int(angle), 0, 360, 1)
-        cv.fillConvexPoly(cur_canvas, polygon, colors[i])
-        cv.circle(cur_canvas, (int(X[0]), int(Y[0])), 4, colors[i], 
-                  thickness=-1)
-        cv.circle(cur_canvas, (int(X[1]), int(Y[1])), 4, colors[i], 
-                  thickness=-1)
-        canvas = cv.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
-        #lengths.append((i, length))
-        #angles.append((i, angle))
-        #angles[0, columns_angles[i]] = angle
-        #lengths[0, columns_lengths[i]] = length
-        angles.set_value(0, columns_angles[i], angle)
-        lengths.set_value(0, columns_lengths[i], length)
-        if i < 16:
-            body_parts.set_value(0, columns_parts[i], (X[0], Y[0]))
-        #print X[0],Y[0]
-        #lengths[i]=length
-        #angles[i]=angle
-        #print angle
-    #for box in bbox:
-    #    area = abs((box[0] - box[2]) * (box[1] - box[3]))
-        #print area
-    #    cv.rectangle(canvas, (box[0], box[1]), (box[2], box[3]), colors[0],
-    #                 thickness = 2)
+    for n in range (len(subset)):
+        for i in range(17):
+            index = subset[n][np.array(limbSeq[i])-1]
+            if -1 in index:
+                continue
+            cur_canvas = canvas.copy()
+            X = candidate[index.astype(int), 0]
+            Y = candidate[index.astype(int), 1]
+            mX = np.mean(X)
+            mY = np.mean(Y)
+            length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
+            angle = math.degrees(math.atan2(Y[0] - Y[1], X[0] - X[1]))
+            polygon = cv.ellipse2Poly((int(mX),int(mY)), (int(length/2), 
+                                       stickwidth), int(angle), 0, 360, 1)
+            cv.fillConvexPoly(cur_canvas, polygon, colors[i])
+            cv.circle(cur_canvas, (int(X[0]), int(Y[0])), 4, colors[i], 
+                      thickness=-1)
+            cv.circle(cur_canvas, (int(X[1]), int(Y[1])), 4, colors[i], 
+                      thickness=-1)
+            canvas = cv.addWeighted(canvas, 0.4, cur_canvas, 0.6, 0)
+            angles.set_value(n, columns_angles[i], angle)
+            lengths.set_value(n, columns_lengths[i], length)
+            if i < 16:
+                body_parts.set_value(n, columns_parts[i], (X[0], Y[0]))
     
     
     plt.imshow(canvas[:,:,[2,1,0]])
     plt.axis('off')
     fig = matplotlib.pyplot.gcf()
     fig.set_size_inches(12, 12)
-    #print "Patching points on image took %.2f ms. " %(1000 * (time.time() - start_time))
-    #img_name_split = full_img_name.split('/')
-    #folder_name = img_name_split[-2]
-    #img_name = img_name_split[-1]
-    #start_time  = time.time()
     fig.savefig(storage_loc+'/'+folder_name+'/'+img_name)
-    #fig.savefig('/data0/krohitm/code/detections/'+img_name)
-    #print "Saving labelled figure took %.2f ms. " %(1000 * (time.time() - start_time))
-    #print angles
-    #print angles
-    #print combs
     plt.close()
-    #print body_parts
-    return bbox[max_area_index], angles, lengths, body_parts
-#def eval_detections():
+    return angles, lengths, body_parts
