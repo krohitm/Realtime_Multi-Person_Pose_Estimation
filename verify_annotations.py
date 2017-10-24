@@ -2,15 +2,8 @@ import pandas as pd
 import cv2 as cv
 from ast import literal_eval as make_tuple
 import os, argparse, sys
+import numpy as np
 
-parser = argparse.ArgumentParser(description='Folder locations')
-#parser.add_argument('--images_location', dest='images_location', 
-#                    help='home directory of images', type=str)
-parser.add_argument('--store_location', dest='store_location', 
-                    help='home directory to store images', type=str)
-
-args = parser.parse_args()
-storage_loc = args.store_location
 
 def write_to_csv(folder):
     postures = pd.DataFrame(pose, columns=['pose'])
@@ -20,47 +13,49 @@ def write_to_csv(folder):
     pose_info.to_csv(os.path.join(storage_loc, folder, 'poselet_and_posture.csv'), index=False)
     sys.exit()
 
-_,folders,_ = os.walk(storage_loc).next()
-folders.sort()
 
 #resizing to 368*654 as mentioned in the paper
 resize_x = 0.340625
 resize_y = 0.340740
-    
+
+#load detected postures
+detected_poses = np.load('./testing/python/temp_postures.npy')
+
+
+all_imgs = detected_poses[:,0]
+#print all_imgs[76349]
+detected_postures = detected_poses[:,1]
+all_imgs = np.expand_dims(all_imgs, axis=1)
+
+folders = list(set(np.apply_along_axis(lambda a: (a[0].split('/')[-2]),1, all_imgs)))
+folders.sort
+
+
+storage_loc = '/data0/krohitm/posture_dataset/scott_vid/pose_detections_PAF'
+
 for folder in folders:
-    #if folder != '2017-06-20-0948-40':
-    if folder != '2017-07-10-2013-02':
-        continue
-    if os.path.exists(os.path.join(storage_loc, folder, 'poselet_and_posture.csv')):
-        data = pd.read_csv(os.path.join(storage_loc, folder, 'poselet_and_posture.csv'),
+    data = pd.read_csv(os.path.join(storage_loc, folder, 'poselet_and_posture.csv'),
                                     delimiter=',', dtype={'image_name':str})
-    #data_temp = pd.read_csv(os.path.join(storage_loc, 'poselet_and_posture.csv'),
-    #                   delimiter=',', dtype={'image_name':str})[['pose','image_name']]
-        pose = list(data['pose'].dropna())
-        start = len(pose)
-        prev_img_name = data.iloc[start-1]['image_name']
-        data.drop(['pose'], inplace=True, axis=1)
-    else:
-        data = pd.read_csv(os.path.join(storage_loc, folder, 'points.csv'),
-                                    delimiter=',', dtype={'image_name':str})
-        pose = []
-        start = 0
+    data.loc[:]['image_name'].fillna(method='ffill', inplace=True)
+    
+    pose = list(data['pose'].dropna())
+    start = len(pose)
+    
 
     num_detections = len(data['image_name'])
-    all_body_points = data.iloc[:][['Neck','RShoulder','RElbow','LElbow','RHip','RKnee','LHip','LKnee','Nose','REye','LEye']]
+    all_body_points = data.iloc[:][['Neck','RShoulder','RElbow','LElbow',
+                               'RHip','RKnee','LHip','LKnee','Nose','REye',
+                               'LEye']]
 
     change_pose_flag = 0
     
     i = start
     while i < num_detections:
-    #for i in range(start, num_detections):
         img_name = data.iloc[i]['image_name']
-        if pd.isnull(img_name):
-            img_name = prev_img_name
-            data.set_value(i, 'image_name', img_name)
-        else:
-            prev_img_name = img_name
-    
+        print img_name
+        
+        detected_pose = detected_poses[np.where(detected_poses[:,0]==img_name),1]
+        
         canvas = cv.imread(img_name) # B,G,R order
         canvas = cv.resize(canvas, None, fx = resize_x, fy = resize_x, 
                            interpolation = cv.INTER_CUBIC)
